@@ -1,0 +1,19 @@
+{
+  "ui": {
+    "theme": {
+      "primary_color": "#FFD1DC",
+      "background": "#FFFFF5"
+    }
+  },
+  "character": {
+    "name": "Рима",
+    "age": 25,
+    "avatar": "static/IMG_2083.jpeg",  <!-- Вот здесь исправлено -->
+    "traits": [
+      "поддерживающая",
+      "остроумная",
+      "эмпатичная"
+    ],
+    "coffee": "латте с корицей"
+  }
+}
