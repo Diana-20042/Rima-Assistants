@@ -1,269 +1,152 @@
 import os
-from dotenv import load_dotenv
-import openai
-from elevenlabs import generate, play
 import sqlite3
 from datetime import datetime
 import gradio as gr
-from textblob import TextBlob
 import random
-from typing import List, Tuple
+import logging
 
-# --- Инициализация ---
-load_dotenv()
+# --- Настройка логов ---
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("Rima")
 
-# --- Конфигурация Римы ---
-rima = {
-    "name": "Рима",
-    "voice": "Bella",
-    "age": 25,
-    "avatar": "avatar.jpg",
-    "traits": ["эмпатичная", "аналитичная", "осторожная"],
-    "memory": {
-        "learned_phrases": {},
-        "emotional_triggers": {}
-    },
-    "behavior": {
-        "sarcasm_level": 0.3,
-        "empathy_level": 0.9
-    }
-}
-
-# --- Инициализация API ---
-openai.api_key = os.getenv("OPENAI_API_KEY")
-ELEVENLABS_API = os.getenv("ELABS_KEY")
-
-# --- База данных ---
-def init_db():
-    conn = sqlite3.connect("rima_ai.db")
-    cursor = conn.cursor()
-    
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS memory (
-            id INTEGER PRIMARY KEY,
-            user_text TEXT,
-            bot_text TEXT,
-            timestamp DATETIME,
-            sentiment REAL,
-            emotion TEXT
-        )
-    """)
-    
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS learned_patterns (
-            pattern TEXT PRIMARY KEY,
-            response TEXT,
-            usage_count INTEGER DEFAULT 1,
-            usefulness REAL DEFAULT 1.0
-        )
-    """)
-    
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS user_profile (
-            key TEXT PRIMARY KEY,
-            value TEXT
-        )
-    """)
-    
-    # Добавляем триггеры для эмоций
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS emotional_triggers (
-            emotion TEXT,
-            trigger_text TEXT,
-            response_template TEXT
-        )
-    """)
-    
-    # Стартовые триггеры
-    cursor.execute("""
-        INSERT OR IGNORE INTO emotional_triggers VALUES
-        ('anger', 'бесит', 'Я вижу, что тебя это злит. Давай обсудим...'),
-        ('sadness', 'грустно', 'Мне жаль, что тебе грустно. *обнимает*')
-    """)
-    
-    conn.commit()
-    return conn, cursor
-
-conn, cursor = init_db()
-
-# --- Анализ эмоций ---
-def analyze_emotion(text: str) -> dict:
-    analysis = TextBlob(text)
-    polarity = analysis.sentiment.polarity
-    
-    emotions = {
-        "anger": ["бесит", "злюсь", "ненавижу"],
-        "joy": ["радость", "счастье", "люблю"],
-        "sadness": ["грустно", "плакать", "тоска"]
-    }
-    
-    detected = []
-    for emotion, keywords in emotions.items():
-        if any(word in text.lower() for word in keywords):
-            detected.append(emotion)
-    
-    return {
-        "polarity": round(polarity, 2),
-        "emotions": detected or ["neutral"]
-    }
-
-# --- Поиск лучшего ответа из памяти ---
-def get_cached_response(message: str) -> str:
-    cursor.execute("""
-        SELECT response FROM learned_patterns
-        WHERE ? LIKE '%' || pattern || '%'
-        ORDER BY usefulness DESC
-        LIMIT 1
-    """, (message,))
-    return cursor.fetchone()[0] if cursor.fetchone() else None
-
-# --- Генерация нового ответа ---
-def generate_new_response(message: str, emotion: dict) -> str:
-    try:
-        # Ищем эмоциональный триггер
-        cursor.execute("""
-            SELECT response_template FROM emotional_triggers
-            WHERE ? LIKE '%' || trigger_text || '%'
-        """, (message,))
-        template = cursor.fetchone()
+# --- Конфигурация ---
+class RimaConfig:
+    def __init__(self):
+        self.name = "Рима"
+        self.age = 25
+        self.avatar = "avatar.jpg"
+        self.traits = ["дружелюбная", "эмпатичная"]
+        self.behavior = {
+            "sarcasm": 0.3,
+            "empathy": 0.9
+        }
         
-        prompt = f"""
-        Ты - {rima['name']} (возраст: {rima['age']}). Твои черты: {', '.join(rima['traits'])}.
-        Эмоция собеседника: {emotion['emotions'][0]} (интенсивность: {emotion['polarity']}).
-        {f"Используй шаблон: '{template[0]}'" if template else ""}
-        
-        Сообщение: {message}
-        Твой ответ:"""
-        
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.7 + rima["behavior"]["sarcasm_level"] * 0.3,
-            max_tokens=150
-        )
-        
-        return response.choices[0].message.content.strip()
-    
-    except Exception as e:
-        print(f"Ошибка генерации: {e}")
-        return random.choice([
-            "Я не совсем поняла...",
-            "Давай поговорим о чём-то другом?",
-            "*нервно молчит*"
-        ])
+    def update_behavior(self, sarcasm=None, empathy=None):
+        if sarcasm is not None:
+            self.behavior["sarcasm"] = max(0, min(1, sarcasm))
+        if empathy is not None:
+            self.behavior["empathy"] = max(0, min(1, empathy))
 
-# --- Оценка полезности ответа ---
-def rate_response(user_msg: str, bot_msg: str) -> float:
-    emotion = analyze_emotion(user_msg)
-    bot_emotion = analyze_emotion(bot_msg)
-    
-    score = 0.5 + len(bot_msg) / 200  # Базовый счёт + длина
-    
-    # Эмоциональная согласованность
-    if emotion["emotions"][0] == bot_emotion["emotions"][0]:
-        score += 0.3
-    
-    # Избегаем негатива в ответ на радость
-    if "joy" in emotion["emotions"] and bot_emotion["polarity"] < 0:
-        score -= 0.4
-        
-    return max(0.1, min(score, 1.0))
+rima = RimaConfig()
 
-# --- Обучение на взаимодействии ---
-def learn_interaction(user_msg: str, bot_msg: str, score: float):
-    try:
-        # Запоминаем фразы
-        keywords = [word for word in user_msg.split() if len(word) > 3][:2]
-        if keywords:
-            pattern = f"{'_'.join(keywords)}"
-            cursor.execute("""
-                INSERT INTO learned_patterns VALUES (?, ?, 1, ?)
-                ON CONFLICT(pattern) DO UPDATE SET
-                    usage_count = usage_count + 1,
-                    usefulness = usefulness + ?
-            """, (pattern, bot_msg, score, score))
+# --- Упрощенная БД ---
+class Database:
+    def __init__(self, db_path="rima.db"):
+        self.conn = sqlite3.connect(db_path)
+        self._init_db()
         
-        # Адаптируем поведение
-        if score < 0.5:
-            rima["behavior"]["sarcasm_level"] = max(0.1, rima["behavior"]["sarcasm_level"] - 0.1)
-        elif score > 0.8:
-            rima["behavior"]["empathy_level"] = min(1.0, rima["behavior"]["empathy_level"] + 0.1)
-            
-        conn.commit()
-    except Exception as e:
-        print(f"Ошибка обучения: {e}")
-
-# --- Основная функция обработки ---
-def respond(message: str, chat_history: List[Tuple[str, str]]) -> List[Tuple[str, str]]:
-    try:
-        # 1. Анализ эмоций
-        emotion = analyze_emotion(message)
-        
-        # 2. Поиск в кэше
-        bot_message = get_cached_response(message)
-        
-        # 3. Генерация нового ответа
-        if not bot_message:
-            bot_message = generate_new_response(message, emotion)
-        
-        # 4. Оценка и обучение
-        score = rate_response(message, bot_message)
-        learn_interaction(message, bot_message, score)
-        
-        # 5. Озвучка
-        if ELEVENLABS_API:
-            try:
-                audio = generate(
-                    text=bot_message,
-                    voice=rima["voice"],
-                    api_key=ELEVENLABS_API
+    def _init_db(self):
+        try:
+            self.conn.execute("""
+                CREATE TABLE IF NOT EXISTS memory (
+                    id INTEGER PRIMARY KEY,
+                    input_text TEXT,
+                    response_text TEXT,
+                    timestamp DATETIME
                 )
-                play(audio)
-            except Exception as e:
-                print(f"Ошибка озвучки: {e}")
-        
-        chat_history.append((message, bot_message))
-        return chat_history
-    
-    except Exception as e:
-        print(f"Критическая ошибка: {e}")
-        chat_history.append((message, "Кажется, я сломалась..."))
-        return chat_history
+            """)
+            self.conn.commit()
+        except Exception as e:
+            logger.error(f"Ошибка инициализации БД: {e}")
 
-# --- Веб-интерфейс ---
-def create_interface():
-    with gr.Blocks(title="Рима AI", theme=gr.themes.Soft()) as app:
-        gr.Markdown(f"## 🎭 {rima['name']} - твой цифровой друг")
-        
-        with gr.Row():
-            chatbot = gr.Chatbot(height=400)
-            with gr.Column():
-                if os.path.exists(rima["avatar"]):
-                    gr.Image(rima["avatar"], width=200)
-                else:
-                    gr.Markdown("*(Аватар не найден)*")
-                
-                gr.Markdown(f"""
-                **Черты характера:**  
-                {', '.join(rima['traits'])}  
-                **Уровень сарказма:** {rima['behavior']['sarcasm_level']:.1f}/1.0
-                """)
-        
-        msg = gr.Textbox(label="Напиши Риме...")
-        msg.submit(respond, [msg, chatbot], [chatbot])
-        
-        with gr.Accordion("Настройки", open=False):
-            gr.Markdown("### Параметры поведения")
-            sarcasm = gr.Slider(0, 1, value=rima["behavior"]["sarcasm_level"], label="Сарказм")
-            empathy = gr.Slider(0, 1, value=rima["behavior"]["empathy_level"], label="Эмпатия")
+    def add_interaction(self, user_msg, bot_msg):
+        try:
+            self.conn.execute(
+                "INSERT INTO memory (input_text, response_text, timestamp) VALUES (?, ?, ?)",
+                (user_msg, bot_msg, datetime.now())
+            )
+            self.conn.commit()
+        except Exception as e:
+            logger.error(f"Ошибка записи в БД: {e}")
+
+db = Database()
+
+# --- Генератор ответов ---
+class ResponseGenerator:
+    RESPONSE_TEMPLATES = {
+        "anger": [
+            "Похоже, ты расстроен. Давай обсудим это...",
+            "Я чувствую, что тебя что-то задело. Хочешь поговорить?"
+        ],
+        "joy": [
+            "Здорово, что ты в хорошем настроении! 😊",
+            "Рада видеть твою улыбку!"
+        ],
+        "default": [
+            "Интересно... Расскажи подробнее.",
+            "Я тебя слушаю. Продолжай.",
+            "Как я могу помочь?"
+        ]
+    }
+
+    def generate_response(self, message):
+        try:
+            # Простейший анализ сообщения
+            emotion = self._detect_emotion(message)
             
-            def update_behavior(s, e):
-                rima["behavior"]["sarcasm_level"] = s
-                rima["behavior"]["empathy_level"] = e
+            # Выбор ответа по шаблону
+            if emotion in self.RESPONSE_TEMPLATES:
+                response = random.choice(self.RESPONSE_TEMPLATES[emotion])
+            else:
+                response = random.choice(self.RESPONSE_TEMPLATES["default"])
+                
+            # Добавляем персональный оттенок
+            if rima.behavior["sarcasm"] > 0.5:
+                response += " " + random.choice([
+                    "(Шучу... или нет?)",
+                    "*саркастично улыбается*"
+                ])
+                
+            return response
+            
+        except Exception as e:
+            logger.error(f"Ошибка генерации: {e}")
+            return "Ой, что-то пошло не так..."
+
+    def _detect_emotion(self, text):
+        text = text.lower()
+        if any(word in text for word in ["злюсь", "бесит", "раздражает"]):
+            return "anger"
+        elif any(word in text for word in ["рад", "счастье", "ура"]):
+            return "joy"
+        return "default"
+
+generator = ResponseGenerator()
+
+# --- Интерфейс ---
+def create_interface():
+    with gr.Blocks(title="Рима", theme=gr.themes.Soft()) as app:
+        # Шапка
+        gr.Markdown(f"## 🤖 {rima.name} - виртуальный собеседник")
+        
+        # Чат
+        chatbot = gr.Chatbot(height=350)
+        msg = gr.Textbox(label="Ваше сообщение", placeholder="Напишите что-нибудь...")
+        
+        # Настройки
+        with gr.Accordion("Настройки персонажа", open=False):
+            sarcasm = gr.Slider(0, 1, value=rima.behavior["sarcasm"], label="Уровень сарказма")
+            empathy = gr.Slider(0, 1, value=rima.behavior["empathy"], label="Уровень эмпатии")
+            save_btn = gr.Button("Применить")
+            
+            def update_settings(s, e):
+                rima.update_behavior(sarcasm=s, empathy=e)
                 return "Настройки сохранены!"
             
-            save = gr.Button("Сохранить")
-            save.click(update_behavior, [sarcasm, empathy], gr.Markdown())
+            save_btn.click(update_settings, [sarcasm, empathy], gr.Markdown())
+        
+        # Логика чата
+        def respond(message, chat_history):
+            try:
+                bot_message = generator.generate_response(message)
+                db.add_interaction(message, bot_message)
+                chat_history.append((message, bot_message))
+                return chat_history
+            except Exception as e:
+                logger.error(f"Ошибка в respond: {e}")
+                return chat_history + [(message, "Произошла ошибка 😔")]
+        
+        msg.submit(respond, [msg, chatbot], [chatbot])
     
     return app
 
@@ -273,5 +156,5 @@ if __name__ == "__main__":
     app.launch(
         server_name="0.0.0.0",
         server_port=7860,
-        show_api=False
+        show_error=True
     )
