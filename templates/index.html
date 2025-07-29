@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <title>Рима - Моя цифровая подруга</title>
-    <!-- Подключение стилей -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <style>
         body {
@@ -16,8 +15,7 @@
 </head>
 <body>
     <div id="chat-container">
-        <!-- Аватар Римы -->
-        <img src="{{ url_for('static', filename='IMG_2157.png') }}" alt="Рима" class="avatar">
+        <img src="{{ url_for('static', filename='IMG_2176.png') }}" alt="Рима" class="avatar">
         <h1>Привет! Я Рима, твоя цифровая подруга ❤️</h1>
         
         <div id="messages" class="messages"></div>
@@ -25,42 +23,5 @@
         <div class="input-container">
             <input type="text" id="user-input" placeholder="Напишите сообщение..." required>
             <button onclick="sendMessage()">Отправить</button>
+            <button onclick="recordVoice()">Записать голос</button>
         </div>
-    </div>
-
-    <script>
-        async function sendMessage() {
-            const input = document.getElementById('user-input');
-            const message = input.value.trim();
-            
-            if (message) {
-                // Добавляем сообщение пользователя
-                const messagesContainer = document.getElementById('messages');
-                const userMessage = document.createElement('div');
-                userMessage.classList.add('message', 'user-message');
-                userMessage.innerText = message;
-                messagesContainer.appendChild(userMessage);
-                
-                // Очищаем поле ввода
-                input.value = '';
-                
-                // Отправляем сообщение боту
-                fetch('/chat', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded'
-                    },
-                    body: `message=${encodeURIComponent(message)}`
-                })
-                .then(response => response.json())
-                .then(data => {
-                    const botMessage = document.createElement('div');
-                    botMessage.classList.add('message', 'bot-message');
-                    botMessage.innerText = data.response;
-                    messagesContainer.appendChild(botMessage);
-                });
-            }
-        }
-    </script>
-</body>
-</html>
