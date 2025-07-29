@@ -1,0 +1,29 @@
+/* static/css/style.css */
+
+.chat-header {
+    background: #e0f7fa;
+    padding: 20px;
+    text-align: center;
+}
+
+.avatar {
+    width: 100px;
+    border-radius: 50%;
+    margin: 10px;
+}
+
+.input-container {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 20px;
+}
+
+.input-container input {
+    flex: 1;
+    padding: 10px;
+    margin-right: 10px;
+}
+
+.input-container button {
+    padding: 10px 20px;
+}
