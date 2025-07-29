@@ -1,8 +1,8 @@
-pip install flask
-pip install transformers
-pip install torch
-pip install python-dotenv
-pip install gunicorn
-pip install pyttsx3
-ip install openai
-pip install huggingface_hub
+flask
+transformers
+torch
+python-dotenv
+gunicorn
+pyttsx3
+openai
+huggingface_hub
