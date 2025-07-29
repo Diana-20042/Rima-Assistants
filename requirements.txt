@@ -1,1 +1,9 @@
 gradio>=3.40
+Flask
+transformers
+torch
+python-dotenv
+gunicorn
+pyttsx3
+openai
+huggingface_hub
