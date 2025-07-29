@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <title>Рима - Моя цифровая подруга</title>
+    <!-- Подключение стилей -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <style>
         body {
             background-color: #f5f5dc; /* Молочный фон */
@@ -10,42 +12,15 @@
             margin: 0;
             padding: 20px;
         }
-        
-        #chat-container {
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-        }
-        
-        .message {
-            margin: 10px 0;
-            padding: 10px;
-            border-radius: 8px;
-        }
-        
-        .user-message {
-            text-align: right;
-            background-color: #e0f7fa;
-            border-left: 4px solid #00796b;
-        }
-        
-        .bot-message {
-            text-align: left;
-            background-color: #fff3e0;
-            border-right: 4px solid #ff9800;
-        }
     </style>
 </head>
 <body>
     <div id="chat-container">
+        <!-- Аватар Римы -->
+        <img src="{{ url_for('static', filename='IMG_2157.png') }}" alt="Рима" class="avatar">
         <h1>Привет! Я Рима, твоя цифровая подруга ❤️</h1>
         
-        <div id="messages" class="messages">
-            <!-- Здесь будут отображаться сообщения -->
-        </div>
+        <div id="messages" class="messages"></div>
         
         <div class="input-container">
             <input type="text" id="user-input" placeholder="Напишите сообщение..." required>
@@ -89,14 +64,3 @@
     </script>
 </body>
 </html>
-Структура папок должна выглядеть так:
-
-Rima/
-│
-├── app.py
-├── templates/
-│   └── index.html
-├── static/
-│   └── (здесь можно положить стили и изображения)
-├── config.json
-└── important_info.json
