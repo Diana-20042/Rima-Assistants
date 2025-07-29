@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Рима - Моя цифровая подруга</title>
+    <style>
+        body {
+            background-color: #f5f5dc; /* Молочный фон */
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+        
+        #chat-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        
+        .message {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 8px;
+        }
+        
+        .user-message {
+            text-align: right;
+            background-color: #e0f7fa;
+            border-left: 4px solid #00796b;
+        }
+        
+        .bot-message {
+            text-align: left;
+            background-color: #fff3e0;
+            border-right: 4px solid #ff9800;
+        }
+    </style>
+</head>
+<body>
+    <div id="chat-container">
+        <h1>Привет! Я Рима, твоя цифровая подруга ❤️</h1>
+        
+        <div id="messages" class="messages">
+            <!-- Здесь будут отображаться сообщения -->
+        </div>
+        
+        <div class="input-container">
+            <input type="text" id="user-input" placeholder="Напишите сообщение..." required>
+            <button onclick="sendMessage()">Отправить</button>
+        </div>
+    </div>
+
+    <script>
+        async function sendMessage() {
+            const input = document.getElementById('user-input');
+            const message = input.value.trim();
+            
+            if (message) {
+                // Добавляем сообщение пользователя
+                const messagesContainer = document.getElementById('messages');
+                const userMessage = document.createElement('div');
+                userMessage.classList.add('message', 'user-message');
+                userMessage.innerText = message;
+                messagesContainer.appendChild(userMessage);
+                
+                // Очищаем поле ввода
+                input.value = '';
+                
+                // Отправляем сообщение боту
+                fetch('/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: `message=${encodeURIComponent(message)}`
+                })
+                .then(response => response.json())
+                .then(data => {
+                    const botMessage = document.createElement('div');
+                    botMessage.classList.add('message', 'bot-message');
+                    botMessage.innerText = data.response;
+                    messagesContainer.appendChild(botMessage);
+                });
+            }
+        }
+    </script>
+</body>
+</html>
+Структура папок должна выглядеть так:
+
+Rima/
+│
+├── app.py
+├── templates/
+│   └── index.html
+├── static/
+│   └── (здесь можно положить стили и изображения)
+├── config.json
+└── important_info.json
