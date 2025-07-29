@@ -1,6 +1,7 @@
-import os
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from pydantic import BaseModel
 import sqlite3
-from datetime import datetime
+import os
 import gradio as gr
 import random
 import logging
@@ -63,53 +64,19 @@ db = Database()
 
 # --- Генератор ответов ---
 class ResponseGenerator:
-    RESPONSE_TEMPLATES = {
-        "anger": [
-            "Похоже, ты расстроен. Давай обсудим это...",
-            "Я чувствую, что тебя что-то задело. Хочешь поговорить?"
-        ],
-        "joy": [
-            "Здорово, что ты в хорошем настроении! 😊",
-            "Рада видеть твою улыбку!"
-        ],
-        "default": [
-            "Интересно... Расскажи подробнее.",
-            "Я тебя слушаю. Продолжай.",
-            "Как я могу помочь?"
-        ]
-    }
+    def __init__(self):
+        self.tokenizer = AutoTokenizer.from_pretrained("microsoft/DialoGPT-medium")
+        self.model = AutoModelForCausalLM.from_pretrained("microsoft/DialoGPT-medium")
 
     def generate_response(self, message):
         try:
-            # Простейший анализ сообщения
-            emotion = self._detect_emotion(message)
-            
-            # Выбор ответа по шаблону
-            if emotion in self.RESPONSE_TEMPLATES:
-                response = random.choice(self.RESPONSE_TEMPLATES[emotion])
-            else:
-                response = random.choice(self.RESPONSE_TEMPLATES["default"])
-                
-            # Добавляем персональный оттенок
-            if rima.behavior["sarcasm"] > 0.5:
-                response += " " + random.choice([
-                    "(Шучу... или нет?)",
-                    "*саркастично улыбается*"
-                ])
-                
-            return response
-            
+            inputs = self.tokenizer.encode(message + self.tokenizer.eos_token, return_tensors="pt")
+            outputs = self.model.generate(inputs, max_length=1000, pad_token_id=self.tokenizer.eos_token_id)
+            reply = self.tokenizer.decode(outputs[:, inputs.shape[-1]:][0], skip_special_tokens=True)
+            return reply
         except Exception as e:
             logger.error(f"Ошибка генерации: {e}")
             return "Ой, что-то пошло не так..."
-
-    def _detect_emotion(self, text):
-        text = text.lower()
-        if any(word in text for word in ["злюсь", "бесит", "раздражает"]):
-            return "anger"
-        elif any(word in text for word in ["рад", "счастье", "ура"]):
-            return "joy"
-        return "default"
 
 generator = ResponseGenerator()
 
